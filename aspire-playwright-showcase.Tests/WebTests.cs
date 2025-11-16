@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using Microsoft.Playwright;
 
 namespace aspire_playwright_showcase.Tests;
@@ -10,6 +11,7 @@ public class WebTests : IAsyncLifetime
     private IBrowser? _browser;
     private string? _webAppUrl;
     private readonly ITestOutputHelper _output;
+    private Process? _appHostProcess;
     private Process? _playwrightServerProcess;
 
     public WebTests(ITestOutputHelper output)
@@ -18,7 +20,67 @@ public class WebTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", "0");
         Environment.SetEnvironmentVariable("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1");
+        StartAppHost();
         StartPlaywrightServer();
+    }
+
+    private void StartAppHost()
+    {
+        try
+        {
+            _output.WriteLine("Starting AppHost...");
+        
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = "run --project ../../../../aspire-playwright-showcase.AppHost",
+                WorkingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            _appHostProcess = Process.Start(processStartInfo);
+
+            if (_appHostProcess != null)
+            {
+                _output.WriteLine($"✅ AppHost process started with PID: {_appHostProcess.Id}");
+            
+                // Start background tasks to read output streams
+                Task.Run(() => ReadOutputStream(_appHostProcess.StandardOutput, "STDOUT"));
+                Task.Run(() => ReadOutputStream(_appHostProcess.StandardError, "STDERR"));
+            
+                // Wait for AppHost to be ready
+                Thread.Sleep(15000);
+            
+                _output.WriteLine("AppHost startup wait completed");
+            }
+            else
+            {
+                _output.WriteLine("❌ Failed to start AppHost process");
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"❌ Error starting AppHost: {ex.Message}");
+        }
+    }
+
+    private async void ReadOutputStream(StreamReader reader, string streamName)
+    {
+        try
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                _output.WriteLine($"[AppHost-{streamName}] {line}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"❌ Error reading {streamName}: {ex.Message}");
+        }
     }
 
     private void StartPlaywrightServer()
