@@ -1,4 +1,5 @@
-﻿using Microsoft.Playwright;
+﻿using System.Diagnostics;
+using Microsoft.Playwright;
 
 namespace aspire_playwright_showcase.Tests;
 
@@ -9,6 +10,7 @@ public class WebTests : IAsyncLifetime
     private IBrowser? _browser;
     private string? _webAppUrl;
     private readonly ITestOutputHelper _output;
+    private Process? _playwrightServerProcess;
 
     public WebTests(ITestOutputHelper output)
     {
@@ -16,6 +18,94 @@ public class WebTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", "0");
         Environment.SetEnvironmentVariable("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1");
+        StartPlaywrightServer();
+    }
+
+    private void StartPlaywrightServer()
+    {
+        try
+        {
+            _output.WriteLine("Starting Playwright server container...");
+
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "podman",
+                Arguments = "run -d --name playwright-server --network host mcr.microsoft.com/playwright:v1.56.0-noble /bin/sh -c \"npx -y playwright@1.56.0 run-server --port 3000 --host 0.0.0.0\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            _playwrightServerProcess = Process.Start(processStartInfo);
+
+            if (_playwrightServerProcess != null)
+            {
+                // Wait a moment for the server to start up
+                Thread.Sleep(5000);
+            }
+            else
+            {
+                _output.WriteLine("❌ Failed to start Playwright server process");
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"❌ Error starting Playwright server: {ex.Message}");
+        }
+    }
+
+     private async Task StopPlaywrightServer()
+    {
+        if (_playwrightServerProcess != null)
+        {
+            try
+            {
+                _output.WriteLine("Stopping Playwright server container...");
+
+                // Stop and remove the container
+                var stopProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "podman",
+                        Arguments = $"stop playwright-server",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                stopProcess.Start();
+                await stopProcess.WaitForExitAsync();
+
+                var removeProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "podman",
+                        Arguments = $"rm playwright-server",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                removeProcess.Start();
+                await removeProcess.WaitForExitAsync();
+
+                _output.WriteLine("✅ Playwright server container stopped and removed");
+
+                _playwrightServerProcess.Dispose();
+                _playwrightServerProcess = null;
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"❌ Error stopping Playwright server: {ex.Message}");
+            }
+        }
     }
 
     public async ValueTask InitializeAsync()
@@ -30,9 +120,9 @@ public class WebTests : IAsyncLifetime
         _playwright = await Playwright.CreateAsync();
         _output.WriteLine("✅ Playwright connection created");
 
-        _output.WriteLine("Launching browser...");
+        _output.WriteLine($"Launching browser... ({serviceUrl})");
         _browser = await _playwright.Chromium.ConnectAsync(serviceUrl);
-        _output.WriteLine("✅ Browser launched");
+        _output.WriteLine("✅ Browser connected");
 
         // Get the URL for the web app under test
         _webAppUrl = "http://localhost:5297";
@@ -49,8 +139,10 @@ public class WebTests : IAsyncLifetime
         {
             await _browser.CloseAsync();
         }
-
         _playwright?.Dispose();
+
+        // Clean up the Playwright server container
+        await StopPlaywrightServer();
     }
 
     [Fact]
