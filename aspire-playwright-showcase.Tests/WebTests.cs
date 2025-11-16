@@ -49,6 +49,7 @@ public class WebTests : IAsyncLifetime
         {
             await _browser.CloseAsync();
         }
+
         _playwright?.Dispose();
     }
 
@@ -60,42 +61,29 @@ public class WebTests : IAsyncLifetime
 
         // Use the test results directory if available, otherwise use current directory
         var testResultsDir = Environment.GetEnvironmentVariable("VSTest_ResultsDirectory")
-                            ?? Path.Combine(Environment.CurrentDirectory, "TestResults");
+                             ?? Path.Combine(Environment.CurrentDirectory, "TestResults");
         var videoDir = Path.Combine(testResultsDir, "videos");
         Directory.CreateDirectory(videoDir);
 
         var context = await _browser!.NewContextAsync(new BrowserNewContextOptions
         {
-            RecordVideoDir = videoDir,
+            RecordVideoDir = "videos/",
             RecordVideoSize = new RecordVideoSize { Width = 1280, Height = 800 }
         });
 
-        try
-        {
-            var page = await context.NewPageAsync();
-            await page.GotoAsync(_webAppUrl);
-            await page.GetByTestId("home").ClickAsync();
-            await page.GetByTestId("counter").ClickAsync();
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await page.GetByTestId("clickme").ClickAsync();
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await page.GetByTestId("weather").ClickAsync();
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        }
-        finally
-        {
-            await context.CloseAsync();
-
-            // Rename the generated video file to the desired name
-            var videoFiles = Directory.GetFiles(videoDir, "*.webm");
-            if (videoFiles.Length > 0)
-            {
-                var latestVideo = videoFiles.OrderByDescending(System.IO.File.GetCreationTime).First();
-                var targetPath = Path.Combine(videoDir, "e2e-tests.webm");
-                if (System.IO.File.Exists(targetPath))
-                    System.IO.File.Delete(targetPath);
-                System.IO.File.Move(latestVideo, targetPath);
-            }
-        }
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(_webAppUrl);
+        await page.GetByTestId("home").ClickAsync();
+        await page.GetByTestId("counter").ClickAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await page.GetByTestId("clickme").ClickAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await page.GetByTestId("weather").ClickAsync();
+        await page.WaitForTimeoutAsync(3000);
+        await context.CloseAsync();
+        // Download video from remote Playwright server
+        var video = page.Video;
+        await video.SaveAsAsync(Path.Combine(videoDir, "e2e-video.webm"));
+        await video.DeleteAsync();
     }
 }
