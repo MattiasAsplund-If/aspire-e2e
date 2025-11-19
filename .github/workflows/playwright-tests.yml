@@ -50,8 +50,7 @@ jobs:
         with:
           name: test-results
           path: |
-            aspire-playwright-showcase.Tests/TestResults/
-            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults/
+            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults/videos/e2e-video.webm
           retention-days: 30
 
       - name: Upload videos
@@ -60,7 +59,7 @@ jobs:
         with:
           name: test-videos
           path: |
-            aspire-playwright-showcase.Tests/TestResults/e2e-video.webm
+            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults/videos/e2e-video.webm
           retention-days: 30
 
       # - name: Cleanup containers
