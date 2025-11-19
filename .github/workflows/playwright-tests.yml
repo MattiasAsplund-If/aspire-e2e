@@ -50,7 +50,7 @@ jobs:
         with:
           name: test-results
           path: |
-            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults/videos/e2e-video.webm
+            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults
           retention-days: 30
 
       - name: Upload videos
