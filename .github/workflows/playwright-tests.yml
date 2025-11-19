@@ -1,0 +1,70 @@
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      # - name: Pull Playwright Docker image
+      #   run: |
+      #     podman pull mcr.microsoft.com/playwright:v1.56.0-noble
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run Playwright tests
+        run: |
+          cd aspire-playwright-showcase.Tests
+          dotnet test --no-build --configuration Release --logger "console;verbosity=detailed"
+        env:
+          # Ensure Playwright uses the correct settings
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS: "1"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults
+          retention-days: 30
+
+      - name: Upload videos
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-videos
+          path: |
+            aspire-playwright-showcase.Tests/bin/Release/net10.0/TestResults/videos/e2e-video.webm
+          retention-days: 30
+
+      # - name: Cleanup containers
+      #   if: always()
+      #   run: |
+      #     # Clean up any remaining containers
+      #     podman stop playwright-server || true
+      #     podman rm playwright-server || true
