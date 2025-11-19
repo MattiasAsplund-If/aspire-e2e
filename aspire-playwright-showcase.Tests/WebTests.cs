@@ -29,7 +29,7 @@ public class WebTests : IAsyncLifetime
         try
         {
             _output.WriteLine("Starting AppHost...");
-        
+
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
@@ -46,14 +46,14 @@ public class WebTests : IAsyncLifetime
             if (_appHostProcess != null)
             {
                 _output.WriteLine($"✅ AppHost process started with PID: {_appHostProcess.Id}");
-            
+
                 // Start background tasks to read output streams
                 Task.Run(() => ReadOutputStream(_appHostProcess.StandardOutput, "STDOUT"));
                 Task.Run(() => ReadOutputStream(_appHostProcess.StandardError, "STDERR"));
-            
+
                 // Wait for AppHost to be ready
                 Thread.Sleep(15000);
-            
+
                 _output.WriteLine("AppHost startup wait completed");
             }
             else
@@ -174,7 +174,7 @@ public class WebTests : IAsyncLifetime
     {
         _output.WriteLine("=== InitializeAsync Start ===");
 
-        var serviceUrl = Environment.GetEnvironmentVariable("PLAYWRIGHT_SERVICE_URL") ?? "http://localhost:3000";
+        var serviceUrl = Environment.GetEnvironmentVariable("PLAYWRIGHT_SERVICE_URL") ?? "ws://localhost:3000";
         _output.WriteLine($"Playwright Service URL: {serviceUrl}");
 
         // Connect to Playwright server
